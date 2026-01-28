@@ -1,0 +1,9 @@
+ipython
+fastapi
+uvicorn[standard]
+paho-mqtt
+sqlalchemy
+psycopg2-binary
+python-dotenv
+geoalchemy2
+-e ../../bdoh-core
