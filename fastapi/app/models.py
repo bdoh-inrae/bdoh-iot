@@ -3,7 +3,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, relationship
 import geoalchemy2
 from geoalchemy2 import Geometry
-from typing import List
 
 Base = declarative_base()
 
