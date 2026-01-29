@@ -10,8 +10,12 @@ Base = declarative_base()
 thing_location = Table(
     'thing_locations',
     Base.metadata,
-    Column('thing_id', String, ForeignKey('things.id'), primary_key=True),
-    Column('location_id', String, ForeignKey('locations.id'), primary_key=True)
+    Column('thing_id', String,
+           ForeignKey('things.id'),
+           primary_key=True),
+    Column('location_id', String,
+           ForeignKey('locations.id'),
+           primary_key=True)
 )
 
 ## LOCATION ___________
@@ -24,20 +28,27 @@ class Location(Base):
     location = Column(Geometry(geometry_type='POINT', srid=4326))
     
     # Relationships
-    Things = relationship("Thing", secondary=thing_location, back_populates="Locations")
+    Things = relationship("Thing",
+                          secondary=thing_location,
+                          back_populates="Locations")
 
     
 ## THINGS ___________
 class Thing(Base):
     __tablename__ = "things"
     id = Column(String, primary_key=True)
-    name = Column(String)
+    name = Column(String, nullable=False)
     description = Column(Text)
     properties = Column(JSONB, default={})
     
     # Relationships
-    Locations = relationship("Location", secondary=thing_location, back_populates="Things")
-    Datastreams = relationship("Datastream", back_populates="Thing", cascade="all, delete-orphan")
+    Locations = relationship("Location",
+                             secondary=thing_location,
+                             back_populates="Things",
+                             cascade="all, delete-orphan")
+    Datastreams = relationship("Datastream",
+                               back_populates="Thing")
+
 
     
 ## OBSERVEDPROPERTY ______________
@@ -49,7 +60,8 @@ class ObservedProperty(Base):
     definition = Column(String)
     
     # Relationships
-    Datastreams = relationship("Datastream", back_populates="ObservedProperty", cascade="all, delete-orphan")
+    Datastreams = relationship("Datastream",
+                               back_populates="ObservedProperty",)
 
 
 ## SENSOR ______________
@@ -62,7 +74,8 @@ class Sensor(Base):
     metadata = Column(Text)
     
     # Relationships
-    Datastreams = relationship("Datastream", back_populates="Sensor", cascade="all, delete-orphan")
+    Datastreams = relationship("Datastream",
+                               back_populates="Sensor")
 
 
 ## FEATURE OF INTEREST _____________
@@ -75,7 +88,8 @@ class FeatureOfInterest(Base):
     feature = Column(Geometry(geometry_type='POLYGON', srid=4326))
     
     # Relationships
-    Observations = relationship("Observation", back_populates="FeatureOfInterest", cascade="all, delete-orphan")
+    Observations = relationship("Observation",
+                                back_populates="FeatureOfInterest")
 
 
 ## DATASTREAM ________________
@@ -93,10 +107,15 @@ class Datastream(Base):
     observed_property_id = Column(String, ForeignKey("observed_properties.id"))
     
     # Relationships
-    Thing = relationship("Thing", back_populates="Datastreams")
-    Sensor = relationship("Sensor", back_populates="Datastreams")
-    ObservedProperty = relationship("ObservedProperty", back_populates="Datastreams")
-    Observations = relationship("Observation", back_populates="Datastream", cascade="all, delete-orphan")
+    Thing = relationship("Thing",
+                         back_populates="Datastreams")
+    Sensor = relationship("Sensor",
+                          back_populates="Datastreams")
+    ObservedProperty = relationship("ObservedProperty",
+                                    back_populates="Datastreams")
+    Observations = relationship("Observation",
+                                back_populates="Datastream",
+                                cascade="all, delete-orphan")
 
     
 ## OBSERVATION ____________
@@ -120,8 +139,10 @@ class Observation(Base):
     raw = Column(JSONB)
     
     # Relationships
-    Datastream = relationship("Datastream", back_populates="Observations")
-    FeatureOfInterest = relationship("FeatureOfInterest", back_populates="Observations")
+    Datastream = relationship("Datastream",
+                              back_populates="Observations")
+    FeatureOfInterest = relationship("FeatureOfInterest",
+                                     back_populates="Observations")
     
     # Hypertable configuration
     __table_args__ = {
