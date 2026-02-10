@@ -1,57 +1,88 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from app.models import Sensor
-from app.schemas import SensorCreate, SensorResponse
-from app.database import get_db
+from typing import Dict, Any, Optional
+from datetime import datetime
+import uuid
+
+from models import Sensor
+from schemas import SensorCreate, SensorUpdate, SensorResponse
+from database import get_db
 
 router = APIRouter()
 
 
 ## SENSORS ___________________________________________________________
-@app.get("/v1.0/Sensors", response_model=Dict[str, Any])
-def get_sensors(skip: int=0, limit: int=100, db: Session=Depends(get_db)):
-    sensors = db.query(Sensor).offset(skip).limit(limit).all()
-    return {"@iot.count": len(sensors), "value": sensors}
+@router.get("/", response_model=Dict[str, Any])
+def get_sensors(
+    top: int = Query(100, alias="$top"),
+    skip: int = Query(0, alias="$skip"),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Sensor)
+    total = query.count()
+    sensors = query.offset(skip).limit(top).all()
+    return {"@iot.count": total, "value": sensors}
 
-@app.post("/v1.0/Sensors", response_model=SensorResponse)
-def create_sensor(sensor_data: SensorCreate, db: Session=Depends(get_db)):
-    existing = db.query(Sensor).filter(Sensor.id == sensor_data.id).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="Sensor already exists")
-    
-    db_sensor = Sensor(**sensor_data.dict())
+
+@router.post("/", response_model=SensorResponse, status_code=201)
+def create_sensor(sensor_data: SensorCreate, db: Session = Depends(get_db)):
+    db_sensor = Sensor(
+        name=sensor_data.name,
+        description=sensor_data.description,
+        encodingType=sensor_data.encodingType,
+        metadata_=sensor_data.metadata  # ← metadata → metadata_
+    )
     db.add(db_sensor)
     db.commit()
     db.refresh(db_sensor)
     return db_sensor
 
-@app.get("/v1.0/Sensors({sensor_id})", response_model=SensorResponse)
-def get_sensor(sensor_id: str, db: Session=Depends(get_db)):
+
+@router.get("({sensor_id})", response_model=SensorResponse)
+def get_sensor(sensor_id: str, db: Session = Depends(get_db)):
     sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
     if not sensor:
         raise HTTPException(status_code=404, detail="Sensor not found")
     return sensor
 
-@app.patch("/v1.0/Sensors({sensor_id})", response_model=SensorResponse)
-def update_sensor(sensor_id: str, sensor_update: dict, db: Session=Depends(get_db)):
+
+@router.patch("({sensor_id})", response_model=SensorResponse)
+def update_sensor(
+    sensor_id: str,
+    sensor_data: SensorUpdate,  # ← Pydantic, pas dict !
+    db: Session = Depends(get_db)
+):
     sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
     if not sensor:
         raise HTTPException(status_code=404, detail="Sensor not found")
-    
-    for field, value in sensor_update.items():
-        if hasattr(sensor, field):
-            setattr(sensor, field, value)
-    
+
+    update_data = sensor_data.dict(exclude_unset=True)
+
+    # Gérer metadata → metadata_
+    if "metadata" in update_data:
+        sensor.metadata_ = update_data.pop("metadata")
+
+    for field, value in update_data.items():
+        setattr(sensor, field, value)
+
     db.commit()
     db.refresh(sensor)
     return sensor
 
-@app.delete("/v1.0/Sensors({sensor_id})")
-def delete_sensor(sensor_id: str, db: Session=Depends(get_db)):
+
+@router.delete("({sensor_id})", status_code=204)
+def delete_sensor(sensor_id: str, db: Session = Depends(get_db)):
     sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
     if not sensor:
         raise HTTPException(status_code=404, detail="Sensor not found")
-    
     db.delete(sensor)
     db.commit()
-    return {"message": "Sensor deleted"}
+
+
+# SensorThings : Datastreams d'un Sensor
+@router.get("({sensor_id})/Datastreams", response_model=Dict[str, Any])
+def get_sensor_datastreams(sensor_id: str, db: Session = Depends(get_db)):
+    sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
+    if not sensor:
+        raise HTTPException(status_code=404, detail="Sensor not found")
+    return {"@iot.count": len(sensor.Datastreams), "value": sensor.Datastreams}

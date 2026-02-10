@@ -2,8 +2,8 @@ import os
 import json
 import paho.mqtt.client as mqtt
 from sqlalchemy.orm import Session
-from app.models import Datastream, Observation
-from app.db import SessionLocal
+from models import Datastream, Observation
+from database import SessionLocal
 
 
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mosquitto")

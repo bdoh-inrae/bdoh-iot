@@ -11,7 +11,7 @@ services:
     restart: no
 
   timescaledb:
-    image: timescale/timescaledb:latest-pg15
+    image: timescale/timescaledb-ha:pg17
     container_name: timescaledb
     environment:
       POSTGRES_DB: iot
@@ -22,7 +22,8 @@ services:
     volumes:
       - ./postgres/data:/var/lib/postgresql/data
     restart: no
- 
+
+
   fastapi:
     build: ./fastapi
     container_name: bdoh-iot-fastapi
@@ -36,9 +37,14 @@ services:
       POSTGRES_PORT: 5432
       MQTT_BROKER: mosquitto
       MQTT_PORT: 1883
+      # PYTHONPATH: /app:/bdoh-core
     volumes:
-      - ./fastapi/app:/app/app  # <--- live code mount for development
+      - ./fastapi/app:/app
+      - ../bdoh-core:/bdoh-core
       - ./fastapi/requirements.txt:/app/requirements.txt
+    command: >
+      sh -c "cd /bdoh-core && pip install -e . &&
+             cd /app && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
     depends_on:
       - timescaledb
       - mosquitto

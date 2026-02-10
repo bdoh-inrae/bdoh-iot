@@ -1,57 +1,108 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from app.models import Thing
-from app.schemas import ThingCreate, ThingResponse
-from app.database import get_db
+from typing import Dict, Any, Optional
+from datetime import datetime
+import uuid
+
+from models import Thing
+from schemas import ThingCreate, ThingUpdate, ThingResponse
+from database import get_db
 
 router = APIRouter()
 
 
 ## THINGS ____________________________________________________________
-@app.get("/v1.0/Things", response_model=Dict[str, Any])
-def get_things(skip: int=0, limit: int=100, db: Session=Depends(get_db)):
-    things = db.query(Thing).offset(skip).limit(limit).all()
-    return {"@iot.count": len(things), "value": things}
+@router.get("/", response_model=Dict[str, Any])
+def get_things(
+    top: int = Query(100, alias="$top"),
+    skip: int = Query(0, alias="$skip"),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Thing)
+    total = query.count()
+    things = query.offset(skip).limit(top).all()
+    return {"@iot.count": total, "value": things}
 
-@app.post("/v1.0/Things", response_model=ThingResponse)
-def create_thing(thing_data: ThingCreate, db: Session=Depends(get_db)):
-    existing = db.query(Thing).filter(Thing.id == thing_data.id).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="Thing already exists")
-    
-    db_thing = Thing(**thing_data.dict())
+
+@router.post("/", response_model=ThingResponse, status_code=201)
+def create_thing(thing_data: ThingCreate, db: Session = Depends(get_db)):
+    db_thing = Thing(
+        name=thing_data.name,
+        description=thing_data.description,
+        properties=thing_data.properties
+    )
+
+    if thing_data.location_ids:
+        locations = db.query(Location).filter(
+            Location.id.in_(thing_data.location_ids)
+        ).all()
+        if len(locations) != len(thing_data.location_ids):
+            raise HTTPException(status_code=404, detail="One or more Locations not found")
+        db_thing.Locations = locations
+
     db.add(db_thing)
     db.commit()
     db.refresh(db_thing)
     return db_thing
 
-@app.get("/v1.0/Things({thing_id})", response_model=ThingResponse)
-def get_thing(thing_id: str, db: Session=Depends(get_db)):
+
+@router.get("({thing_id})", response_model=ThingResponse)
+def get_thing(thing_id: str, db: Session = Depends(get_db)):
     thing = db.query(Thing).filter(Thing.id == thing_id).first()
     if not thing:
         raise HTTPException(status_code=404, detail="Thing not found")
     return thing
 
-@app.patch("/v1.0/Things({thing_id})", response_model=ThingResponse)
-def update_thing(thing_id: str, thing_update: dict, db: Session=Depends(get_db)):
+
+@router.patch("({thing_id})", response_model=ThingResponse)
+def update_thing(
+    thing_id: str,
+    thing_data: ThingUpdate,  # ← Pydantic, pas dict !
+    db: Session = Depends(get_db)
+):
     thing = db.query(Thing).filter(Thing.id == thing_id).first()
     if not thing:
         raise HTTPException(status_code=404, detail="Thing not found")
-    
-    for field, value in thing_update.items():
-        if hasattr(thing, field):
-            setattr(thing, field, value)
-    
+
+    update_data = thing_data.dict(exclude_unset=True)
+
+    # Gérer location_ids séparément
+    if "location_ids" in update_data:
+        locations = db.query(Location).filter(
+            Location.id.in_(update_data.pop("location_ids"))
+        ).all()
+        thing.Locations = locations
+
+    for field, value in update_data.items():
+        setattr(thing, field, value)
+
     db.commit()
     db.refresh(thing)
     return thing
 
-@app.delete("/v1.0/Things({thing_id})")
-def delete_thing(thing_id: str, db: Session=Depends(get_db)):
+
+@router.delete("({thing_id})", status_code=204)
+def delete_thing(thing_id: str, db: Session = Depends(get_db)):
     thing = db.query(Thing).filter(Thing.id == thing_id).first()
     if not thing:
         raise HTTPException(status_code=404, detail="Thing not found")
-    
     db.delete(thing)
     db.commit()
-    return {"message": "Thing deleted"}
+
+
+# SensorThings : Locations d'un Thing
+@router.get("({thing_id})/Locations", response_model=Dict[str, Any])
+def get_thing_locations(thing_id: str, db: Session = Depends(get_db)):
+    thing = db.query(Thing).filter(Thing.id == thing_id).first()
+    if not thing:
+        raise HTTPException(status_code=404, detail="Thing not found")
+    return {"@iot.count": len(thing.Locations), "value": thing.Locations}
+
+
+# SensorThings : Datastreams d'un Thing
+@router.get("({thing_id})/Datastreams", response_model=Dict[str, Any])
+def get_thing_datastreams(thing_id: str, db: Session = Depends(get_db)):
+    thing = db.query(Thing).filter(Thing.id == thing_id).first()
+    if not thing:
+        raise HTTPException(status_code=404, detail="Thing not found")
+    return {"@iot.count": len(thing.Datastreams), "value": thing.Datastreams}

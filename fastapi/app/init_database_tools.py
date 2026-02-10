@@ -1,11 +1,11 @@
-# app/database_init.py
-from sqlalchemy import text
-from app.db import engine
 import logging
+from sqlalchemy import text
+from database import engine
 
 logger = logging.getLogger(__name__)
 
-def init_database():
+
+def init_database_extension():
     """Initialize all database extensions"""
     with engine.connect() as conn:
         try:
@@ -23,7 +23,8 @@ def init_database():
             conn.rollback()
             raise
 
-def optimize_observations_table():
+        
+def init_database_optimize():
     """Convert observations to optimized TimescaleDB hypertable with YOUR requirements"""
     with engine.connect() as conn:
         try:
@@ -62,17 +63,8 @@ def optimize_observations_table():
             
             # 3. Create optimized indexes
             conn.execute(text("""
-                -- Index for time-based queries
-                CREATE INDEX IF NOT EXISTS idx_observations_time 
-                ON observations (phenomenonTime DESC)
-                
-                -- Index for datastream + time queries (common pattern)
-                CREATE INDEX IF NOT EXISTS idx_observations_datastream_time 
-                ON observations (datastream_id, phenomenonTime DESC)
-                
-                -- Index for result value queries
-                CREATE INDEX IF NOT EXISTS idx_observations_result 
-                ON observations (result)
+            CREATE INDEX IF NOT EXISTS idx_observations_datastream_time 
+            ON observations (datastream_id, "phenomenonTime" DESC)
             """))
             
             # 4. Enable compression (but don't auto-compress yet)
@@ -80,7 +72,7 @@ def optimize_observations_table():
                 ALTER TABLE observations SET (
                     timescaledb.compress,
                     timescaledb.compress_segmentby = 'datastream_id',
-                    timescaledb.compress_orderby = 'phenomenonTime DESC'
+                    timescaledb.compress_orderby = '"phenomenonTime" DESC'
                 )
             """))
             
@@ -95,7 +87,6 @@ def optimize_observations_table():
             
             # 6. NO RETENTION POLICY - KEEP ALL DATA FOREVER
             # (We don't add any retention policy)
-            
             conn.commit()
             logger.info("""
                 Observations table optimized as TimescaleDB hypertable:
@@ -108,8 +99,3 @@ def optimize_observations_table():
             logger.error(f"Failed to optimize observations table: {e}")
             conn.rollback()
             raise
-
-def setup_database():
-    """Complete database setup"""
-    init_database()
-    optimize_observations_table()

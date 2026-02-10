@@ -3,33 +3,67 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 
+class UnitOfMeasurement(BaseModel):
+    """Conforme SensorThings"""
+    name: str
+    symbol: str
+    definition: str
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "Celsius",
+                "symbol": "°C",
+                "definition": "http://qudt.org/vocab/unit/DEG_C"
+            }
+        }
+
+
 ## DATASTREAM _____________
 class DatastreamBase(BaseModel):
-    name: Optional[str] = None
+    name: str
     description: Optional[str] = None
-    observation_type: str = "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement"
-    unit_of_measurement: Dict[str, str] = Field(
-        ...,
-        description="e.g., {'name': 'Celsius', 'symbol': '°C', 'definition': 'http://...'}"
-    )
+    observationType: str = "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement"
+    unitOfMeasurement: UnitOfMeasurement
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
 
 class DatastreamCreate(DatastreamBase):
-    """Schéma pour créer un Datastream"""
-    id: Optional[str] = None
+    # ← Plus d'id
     thing_id: str
     sensor_id: str
     observed_property_id: str
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "Température air Paris",
+                "description": "Mesure température air station Paris",
+                "observationType": "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+                "unitOfMeasurement": {
+                    "name": "Celsius",
+                    "symbol": "°C",
+                    "definition": "http://qudt.org/vocab/unit/DEG_C"
+                },
+                "thing_id": "uuid-du-thing",
+                "sensor_id": "uuid-du-sensor",
+                "observed_property_id": "uuid-de-lobservedproperty"
+            }
+        }
+
 class DatastreamUpdate(BaseModel):
-    """Mise à jour partielle"""
     name: Optional[str] = None
     description: Optional[str] = None
-    unit_of_measurement: Optional[Dict[str, str]] = None
+    unitOfMeasurement: Optional[UnitOfMeasurement] = None
+    observationType: Optional[str] = None
 
 class DatastreamResponse(DatastreamBase):
-    """Schéma de réponse pour un Datastream"""
     id: str
     thing_id: str
     sensor_id: str
     observed_property_id: str
-    observation_ids: List[str] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True

@@ -7,20 +7,34 @@ from datetime import datetime
 class SensorBase(BaseModel):
     name: str
     description: Optional[str] = None
-    encoding_type: str = "application/json"
-    metadata: Optional[str] = None
+    encodingType: str = "application/json"
+    metadata: Optional[str] = Field(None, alias="metadata_")  # ← Gère le underscore
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
 
 class SensorCreate(SensorBase):
-    """Schéma pour créer un Sensor"""
-    id: Optional[str] = None
+    # ← Plus d'id
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "Capteur température DHT22",
+                "description": "Capteur température et humidité",
+                "encodingType": "application/json",
+                "metadata": "https://www.example.com/sensors/dht22.pdf"
+            }
+        }
 
 class SensorUpdate(BaseModel):
-    """Mise à jour partielle"""
     name: Optional[str] = None
     description: Optional[str] = None
     metadata: Optional[str] = None
 
 class SensorResponse(SensorBase):
-    """Schéma de réponse pour un Sensor"""
     id: str
     datastream_ids: List[str] = []
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
